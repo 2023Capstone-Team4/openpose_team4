@@ -45,6 +45,23 @@ OpenPose로 인식된 각각의 관절점들은 0~1 사이의 신뢰도 값을 �
 
 </br>
 
+## 🔎실행 매뉴얼
+1. Openpose 파일 다운받기
+    
+    https://github.com/CMU-Perceptual-Computing-Lab/openpose
+    
+    위 링크에서 파일을 다운받는다.(Download ZIP)
+    ![image](https://github.com/2023Capstone-Team4/openpose_team4/assets/74875490/36d7c088-ce50-4381-b520-6c7d8cfcb4b3)
+
+
+2. 파일을 압축해제 후, models 폴더의 getModels 파일 실행한다. 파일이 실행되면서 모델들이 다운로드 된다.
+    ![image](https://github.com/2023Capstone-Team4/openpose_team4/assets/74875490/5dc5980a-773e-4c4e-85a0-e1b0c9cbf6aa)
+
+3. 다운로드된 모델 중 pose_deploy_linevec_faster_4_stages.prototxt, pose_iter_160000.caffemodel을 사용한다. 해당 파일들을 실행파일과 같은 위치로 이동시킨다.
+4. 실행파일을 실행한다.
+
+</br>
+
 ## 🔎실행결과
 
 ![시연3_0527](https://github.com/2023Capstone-Team4/openpose_team4/assets/74875490/5fee600c-53f6-4b35-a7ca-723583eb1a2d)
