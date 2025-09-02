@@ -1,28 +1,35 @@
 import cv2
 
 # MPII에서 각 파트 번호, 선으로 연결될 POSE_PAIRS
+# (COCO는 17개 포인트, MPII는 16개 포인트를 사용)
 BODY_PARTS = { "Head": 0, "Neck": 1, "RShoulder": 2, "RElbow": 3, "RWrist": 4,
                 "LShoulder": 5, "LElbow": 6, "LWrist": 7, "RHip": 8, "RKnee": 9,
                 "RAnkle": 10, "LHip": 11, "LKnee": 12, "LAnkle": 13, "Chest": 14,
                 "Background": 15 }
 
+# 관절을 연결해서 뼈대를 그릴 때 사용할 선 정의
 POSE_PAIRS = [ ["Head", "Neck"], ["Neck", "RShoulder"], ["RShoulder", "RElbow"],
                 ["RElbow", "RWrist"], ["Neck", "LShoulder"], ["LShoulder", "LElbow"],
                 ["LElbow", "LWrist"], ["Neck", "Chest"], ["Chest", "RHip"], ["RHip", "RKnee"],
                 ["RKnee", "RAnkle"], ["Chest", "LHip"], ["LHip", "LKnee"], ["LKnee", "LAnkle"] ]
 
+# OpenPose용 사전 학습된 모델 불러오기
+# protoFile: 네트워크 구조 정의
+# weightsFile: 학습된 가중치
 protoFile = "pose_deploy_linevec_faster_4_stages.prototxt";
 weightsFile = "pose_iter_160000.caffemodel";
 
 # 위의 path에 있는 network 모델 불러오기
 net = cv2.dnn.readNetFromCaffe(protoFile, weightsFile);
 
+# 입력 영상 크기 및 스케일링 설정
 inputWidth=320;
 inputHeight=240;
 inputScale=1.0/255;
 
 # network에 넣어주기
 #open = cv2.imread("./open.jpg");
+# 이미지 저장용 카운터
 n=1
 def getOpenPose(img):
     global n
@@ -30,28 +37,33 @@ def getOpenPose(img):
     frame=img;
     frameWidth =  img.shape[1];
     frameHeight = img.shape[0];
+
+    # 전처리: 이미지를 네트워크 입력 형태(blob)로 변환
     inpBlob = cv2.dnn.blobFromImage(frame, inputScale, (inputWidth, inputHeight), (0, 0, 0), swapRB=False, crop=False)
     
     imgb=cv2.dnn.imagesFromBlob(inpBlob);
 
     # 결과 받아오기
     #net.setInput(cv2.dnn.blobFromImage(frame, 1.0, (300, 300), (104.0, 177.0, 123.0)));
+    # 네트워크에 입력 후 추론 실행
     net.setInput(inpBlob);
     output = net.forward();
 
     # 키포인트 검출시 이미지에 그려줌
+    # 검출된 관절 포인트들을 저장할 리스트
     points = []
-    for i in range(0,15):
+    for i in range(0,15): # Background 제외 0~14번까지 반복
         # 해당 신체부위 신뢰도 얻음.
-        probMap = output[0, i, :, :]
+        probMap = output[0, i, :, :]  
 
-        # global 최대값 찾기
+        # global 최대값 찾기; 가장 확률 높은 위치 탐색
         minVal, prob, minLoc, point = cv2.minMaxLoc(probMap)
 
         # 원래 이미지에 맞게 점 위치 변경
         x = (frameWidth * point[0]) / output.shape[3]
         y = (frameHeight * point[1]) / output.shape[2]
 
+        # 임계값을 0.1로 두었다. 
         # 키포인트 검출한 결과가 0.1보다 크면(검출한곳이 위 BODY_PARTS랑 맞는 부위면) points에 추가, 검출했는데 부위가 없으면 None으로    
         if prob > 0.1 :    
             cv2.circle(frame, (int(x), int(y)), 3, (0, 255, 255), thickness=-1, lineType=cv2.FILLED) # circle(그릴곳, 원의 중심, 반지름, 색)
@@ -59,15 +71,18 @@ def getOpenPose(img):
             points.append((int(x), int(y)))
         else :
             points.append(None)
-
+    # 목(1)과 흉부(14)가 검출된 경우 두 점을 선으로 연결 
     if points[1] and points[14]:
         cv2.line(frame, points[1], points[14], (0, 255, 0), 2)
         cv2.imwrite('./img/img'+str(n)+'.PNG', frame);
         n+=1
+
+        # 목과 흉부의 x좌표 차이가 20px 이상이면 bad, 아니면 good
         if(points[1][0]-points[14][0]>=20):
             return "bad"
         else:
             return "good"
+    # 둘 다 검출되지 않은 경우 neutral
     return "neutral"
 
 #getOpenPose(open);
@@ -86,9 +101,12 @@ from flask_cors import CORS
 import base64
 
 app = Flask(__name__)
-CORS(app)
+CORS(app) # CORS 허용 (다른 도메인에서 요청 가능)
 
 def stringToRGB(base64_string):
+    """
+    프론트엔드에서 base64로 전송된 이미지를 RGB(OpenCV) 형식으로 변환
+    """
     imgdata = base64.b64decode(base64_string)
     dataBytesIO = io.BytesIO(imgdata)
     image = Image.open(dataBytesIO)
@@ -98,9 +116,12 @@ def stringToRGB(base64_string):
 def hello():
     return "hello"
 
-
+# Flask에서 root url로 들어오는 POST 요청만 받고, 들어올 경우 predict 실행 
 @app.route('/', methods=['POST'])
 def predict():
+    """
+    POST로 전달된 base64 이미지 → OpenPose 분석 → good/bad/neutral 반환
+    """
     data = request.get_json();
     class_name = getOpenPose(stringToRGB(data["data"]));
     return jsonify({'class_name': class_name});
